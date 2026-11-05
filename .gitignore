@@ -1,0 +1,53 @@
+# ===== EVE/VE analysis — keep ALL participant data and private paths out of git =====
+
+# Local configuration with private input paths (never commit)
+config.local.R
+
+# Linked participant-data drop folder — never commit its contents (only its README)
+data/*
+!data/README.md
+
+# Generated outputs (tables, figures, clean datasets, reports)
+outputs/
+main_output/
+main_output_coded/
+main_output_protocol/
+output/
+tables/
+figures/
+
+# Participant-level / linked datasets and QC logs
+Distinct_CODED.csv
+Distinct_CODED.xlsx
+*participant_level*
+linked_dataset_*.csv
+cleaned_linkage.csv
+Link log.csv
+*_QC*.csv
+*qc_log*
+EVE_Site_Query*.xlsx
+*queries*.xlsx
+
+# Reports / decks / unpublished outputs and Office lock files
+*.docx
+*.pptx
+*.pdf
+*.rds
+~$*
+
+# Stray root-level duplicate of the dictionary (the tracked copy lives in data_dictionary/)
+/Distinct_CODED_data_dictionary.csv
+
+# R / OS cruft
+.Rproj.user/
+.Rhistory
+.RData
+.Rprofile
+.DS_Store
+Thumbs.db
+
+# ---- intentionally TRACKED (shareable), despite patterns above ----
+!config.local.R.example
+!data_dictionary/
+!data_dictionary/*.csv
+!README.md

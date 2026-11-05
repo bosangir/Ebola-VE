@@ -1,0 +1,26 @@
+# config.local.R.example
+# ---------------------------------------------------------------------------
+# OPTIONAL. The pipeline already looks in the local  data/  folder by default
+# (drop your linked files there — see data/README.md). Use config.local.R only
+# to point somewhere ELSE. Copy this file to config.local.R and set real paths.
+# config.local.R is gitignored and must never be committed. With no inputs in
+# data/ and no config.local.R, the pipeline stops with a clear message.
+# ---------------------------------------------------------------------------
+
+# Confirmed linked file: one row per surveillance<->lab pair. Use the dashboard
+# "Cleaned linkage" export (duplicates merged / deletions applied) where available,
+# otherwise the "Distinct cases" export.
+LINK_INPUT <- "C:/path/to/cleaned_linkage.csv"
+
+# Triangulated WIDE laboratory register (uid-keyed; all RT-PCR results + specimen
+# dates per patient). Join key = patient_uid == LINK_INPUT lab_sample_id.
+WIDE_LAB   <- "C:/path/to/merged_eve_lab_wide.csv"
+
+# OPTIONAL: dashboard data folder holding resolution JSONs
+# (deletions.json, record_corrections.json, result_overrides.json).
+# Leave "" to skip applying dashboard cleaning.
+DASH_DATA  <- ""
+
+# PRIVATE output folder for the clean dataset, tables, figures and the report.
+# Keep this OUTSIDE any shared/synced folder if it will hold identifiers.
+OUT_DIR    <- "C:/path/to/private/EVE_VE_outputs"
