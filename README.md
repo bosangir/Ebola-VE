@@ -1,89 +1,80 @@
-# EVE / VE — Preliminary Vaccine-Effectiveness Analysis (DRC, test-negative design)
+<div align="center">
 
-Reproducible R workflow for the preliminary analysis presented on 8 Oct 2026
-(Report 001). It produces a **clean coded analysis dataset** that follows the study
-flowchart, the **analysis outputs** (tables, figures), and a **preliminary report**
-generated from those outputs.
+# Ebola Vaccine Effectiveness, Bulape
 
-> **PRELIMINARY — internal review.** All estimates are provisional.
+Reproducible R pipeline for a test-negative study of Ervebo (rVSV-ZEBOV) effectiveness against laboratory-confirmed Ebola virus disease, Democratic Republic of the Congo.
+
+[![R](https://img.shields.io/badge/R-4.6.x-276DC3)](https://www.r-project.org/)
+![Status](https://img.shields.io/badge/status-preliminary-orange)
+![Data](https://img.shields.io/badge/participant%20data-not%20included-lightgrey)
+
+</div>
+
+<hr>
+
+## Overview
+
+This repository holds the code that turns linked outbreak data into a clean analysis dataset, the vaccine-effectiveness estimates, and the figures and reports. It contains no participant data. You supply your own linked files locally, and the pipeline builds everything from them.
+
+The design is a test-negative case-control study. Among suspected patients tested by RT-PCR, cases test positive and controls test negative, and the two groups are compared on prior vaccination. Vaccine effectiveness is VE = (1 - odds ratio) x 100.
 
 ## Quick start
+
+1. Install R 4.6.x and the packages listed under Requirements.
+2. Put your linked files in the local `data/` folder (see `data/README.md`).
+3. Run the whole pipeline:
+
 ```bash
-# from the project root
-"C:/Program Files/R/R-4.6.0/bin/Rscript.exe" run_all.R
+Rscript run_all.R
 ```
-**To run, drop the linked files in the local `data/` folder** (see `data/README.md`) and run
-the command above — the pipeline finds them automatically, and `data/` is gitignored. No
-config edit needed. `config.local.R` is only for pointing elsewhere. With no inputs in `data/`
-and no `config.local.R`, the pipeline stops with a clear message (no data is bundled).
 
-## Run order (one entry point: `run_all.R`)
-| Step | Script | Does |
-|---|---|---|
-| 0 | `R/00_config.R` | packages, paths (from `config.local.R`), helpers, coding maps, VE transform |
-| 1 | `R/01_import_validate.R` | read linkage + wide lab register; validate schema |
-| 2 | `R/02_build_cohort.R` | build coded dataset (one row/participant) + **study-flow table** (+ `R/data_dictionary.R`) |
-| 3 | `R/03_analysis.R` | EDA, descriptives, **crude + adjusted VE**, sensitivity; saves a results bundle |
-| 4 | `R/04_report.R` | **Word report** from the saved bundle (values stay out of the report source) |
+On Windows you can double-click `run_all.bat` instead. Outputs are written to `outputs/`, which is never committed.
 
-Run a single stage interactively by sourcing `R/00_config.R` then the stage you want.
+## Pipeline
 
-## Configure your data (private; never committed)
+| Step | Script | Produces |
+| :--- | :--- | :--- |
+| 0 | `R/00_config.R` | packages, paths, shared helpers, coding maps |
+| 1 | `R/01_import_validate.R` | reads the linkage and laboratory files, checks the schema |
+| 2 | `R/02_build_cohort.R` | one row per participant, coded dataset, data dictionary, study flow |
+| 3 | `R/03_analysis.R` | VE models, sensitivity analyses, mortality, figures, results bundle |
+| 4 | `R/04_report.R` | narrative Word report, built from the bundle |
+| 5 | `R/05_slides.R` | PowerPoint deck, built from the bundle |
+
+`run_all.R` runs the steps in order. Every result lives in the bundle, so the report and slides hold no hand-typed numbers.
+
+## Data handling and privacy
+
+Participant data stays on your machine. The `data/` drop folder and all generated outputs, reports, decks and logs are listed in `.gitignore` and are never pushed. Only the code, this README, the example configuration and the shareable data dictionary are tracked.
+
+To point the pipeline at files outside `data/`, copy `config.local.R.example` to `config.local.R` and set the paths there. `config.local.R` is also gitignored.
+
+## Requirements
+
+R 4.6.x and the following packages:
+
 ```r
-# config.local.R  (copy from config.local.R.example)
-LINK_INPUT <- "…/cleaned_linkage.csv"        # one row per surveillance<->lab pair
-WIDE_LAB   <- "…/merged_eve_lab_wide.csv"    # uid-keyed RT-PCR history (patient_uid)
-DASH_DATA  <- ""                             # optional: dashboard JSONs (deletions/corrections/result_overrides)
-OUT_DIR    <- "…/private/EVE_VE_outputs"     # private outputs (identifiable)
+install.packages(c("dplyr", "ggplot2", "writexl", "officer", "flextable", "jsonlite"))
 ```
 
-## Expected input schema (key columns)
-- **LINK_INPUT**: `name_1,name_4,name_5,lab_sample_id,sex,age_years,vaccin_mve,date_vaccination1,
-  type_vaccin1,vaccine_strategy,date_frist_sympt,specimen_collection_date,outcome,ever_hospitalised,
-  contact_connu,contact,funerailles,voyage,health_zone_1,…,match_type,final_status,linkage_tier,labreg_name`
-- **WIDE_LAB**: `patient_uid, final_result_evd_1..N, test_result_date_1..N, sex, age_years, health_zone,
-  health_area, final_status, pcr_test_result, date_of_death`
+`officer` and `flextable` are needed for the report and slides. `jsonlite` is optional, used only when a dashboard cleaning folder is supplied.
 
-See `data_dictionary/Distinct_CODED_data_dictionary.csv` for the full coded variable list.
+## Outputs
 
-## Methods (scope = Report 001 slides)
-Test-negative design. **Outcome** = episode-defining RT-PCR (first definitive specimen on/after
-onset); case = positive, control = negative; indeterminate excluded. **Exposure** = vaccinated vs
-not vaccinated (unknown excluded, never imputed); protocol >10-day effective window as a sensitivity.
-**Model**: logistic, crude then adjusted (age group, sex, calendar week); `VE = (1 − OR) × 100`,
-profile-likelihood 95% CI. **Sensitivity**: Firth penalised, exclude cross-record links, alternative
-outcome definitions.
+Running the pipeline writes to `outputs/`:
 
-## Outputs (`OUT_DIR`, default `outputs/`)
-`Distinct_CODED.csv/.xlsx`, `Distinct_CODED_data_dictionary.csv`, `cohort_flow.csv`,
-`analytic_participant_level.csv`, `analysis_tables.xlsx`, `results_bundle.rds`, `figures/*.png`,
-`EVE_VE_Preliminary_Report_<date>.docx`.
+- `Distinct_CODED.csv` and `.xlsx`, the coded one-row-per-participant dataset, with the data dictionary
+- `EVE_Master_Distinct_<N>_cleaned.xlsx`, the de-duplicated master workbook
+- `cohort_flow.csv`, the study-flow counts
+- `analysis_tables.xlsx`, every analysis table on its own sheet
+- `results_bundle.rds`, the saved results object
+- `figures/F1` to `F5`, the plots
+- the Word report and the PowerPoint deck
 
-## R dependencies
-`dplyr`, `ggplot2`, `writexl` (stages 0–3); `officer`, `flextable` (stage 4);
-`jsonlite` (optional, only if `DASH_DATA` is set); `readxl` (optional). R 4.6.x.
-```r
-install.packages(c("dplyr","ggplot2","writexl","officer","flextable","jsonlite"))
-```
+## Methods in brief
 
-## Checks that still require a run on the REAL data
-- Cohort counts reconcile with the slides (export → distinct → eligible → primary → adjusted).
-  Updated/cleaned data may differ from the Oct-2026 slide counts.
-- Firth **adjusted** model fits (can be skipped when data are sparse/separable).
-- Vaccination-date / strategy completeness and the differential-missingness pattern.
-- The data-quality flags (onset-to-swab > 30 days, vaccinated-after-onset, indeterminate results).
+The outcome is the episode-defining RT-PCR result, meaning the first definitive specimen on or after symptom onset. The exposure is vaccinated against not vaccinated, with unknown status excluded and never imputed. Models are logistic regression, crude and adjusted, with Firth penalised regression where the data are sparse. Sensitivity analyses cover the exclusion of lower-confidence links, alternative outcome definitions, and the protocol window that counts a person as effectively vaccinated only more than 10 days before onset. A retrospective cohort estimates effectiveness against death among confirmed cases.
 
-## Data handling & privacy
-Participant data is never committed. The `data/` drop-folder, `config.local.R`, all generated
-outputs, participant-level files, QC logs, and reports are gitignored. Only code, the README,
-and the shareable data dictionary are tracked.
+## Status
 
-## Repository layout
-```
-run_all.R  config.local.R.example  README.md  .gitignore
-R/            00..04 pipeline + data_dictionary.R
-data_dictionary/  shareable coded variable dictionary
-data/             local linked-data drop folder (gitignored; see data/README.md)
-archive/          superseded scripts (see archive/README.md)
-outputs/          generated (gitignored)
-```
+Preliminary and for internal review. All estimates are provisional.

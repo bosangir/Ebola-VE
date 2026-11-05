@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ebola Vaccine Effectiveness, Bulape</title>
+<meta name="description" content="Reproducible R pipeline for a test-negative study of Ervebo effectiveness against laboratory-confirmed Ebola virus disease, DRC.">
+<style>
+  :root{
+    --ink:#1f2933;        /* body text */
+    --muted:#52606d;      /* secondary text */
+    --accent:#1f3864;     /* headings */
+    --line:#dfe3e8;       /* borders */
+    --panel:#f6f7f9;      /* light panels */
+    --max:760px;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; color:var(--ink);
+    background:#ffffff;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    font-size:17px; line-height:1.65;
+  }
+  .wrap{max-width:var(--max); margin:0 auto; padding:0 20px}
+  header{border-bottom:1px solid var(--line); padding:56px 0 28px}
+  header .wrap{padding-top:0}
+  h1{color:var(--accent); font-size:30px; line-height:1.2; margin:0 0 8px; letter-spacing:-0.2px}
+  .lede{color:var(--muted); font-size:18px; margin:0 0 18px; max-width:62ch}
+  .badges{display:flex; flex-wrap:wrap; gap:8px}
+  .badge{font-size:12.5px; color:var(--muted); background:var(--panel);
+    border:1px solid var(--line); border-radius:4px; padding:3px 9px}
+  main{padding:8px 0 48px}
+  section{padding:26px 0; border-bottom:1px solid var(--line)}
+  section:last-child{border-bottom:0}
+  h2{color:var(--accent); font-size:19px; margin:0 0 10px}
+  p{margin:0 0 14px}
+  a{color:#1a4f8b}
+  ul{margin:0 0 14px; padding-left:20px}
+  li{margin:4px 0}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:14px;
+    background:var(--panel); border:1px solid var(--line); border-radius:3px; padding:1px 5px}
+  pre{background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:14px 16px; overflow:auto; margin:0 0 14px}
+  pre code{background:none; border:0; padding:0; font-size:13.5px}
+  table{border-collapse:collapse; width:100%; font-size:15px; margin:0 0 14px}
+  th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+  thead th{background:var(--panel); color:var(--accent); border-bottom:2px solid var(--line)}
+  td code{white-space:nowrap}
+  .note{background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px 16px}
+  footer{color:var(--muted); font-size:14px; padding:24px 0 48px}
+  @media (max-width:560px){ h1{font-size:25px} body{font-size:16px} table{font-size:14px} }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Ebola Vaccine Effectiveness, Bulape</h1>
+    <p class="lede">A reproducible R pipeline for a test-negative study of Ervebo (rVSV-ZEBOV) effectiveness against laboratory-confirmed Ebola virus disease, Democratic Republic of the Congo.</p>
+    <div class="badges">
+      <span class="badge">R 4.6.x</span>
+      <span class="badge">Status: preliminary</span>
+      <span class="badge">Participant data not included</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section>
+    <h2>Overview</h2>
+    <p>This repository holds the code that turns linked outbreak data into a clean analysis dataset, the vaccine-effectiveness estimates, and the figures and reports. It contains no participant data. You supply your own linked files locally, and the pipeline builds everything from them.</p>
+    <p>The design is a test-negative case-control study. Among suspected patients tested by RT-PCR, cases test positive and controls test negative, and the two groups are compared on prior vaccination. Vaccine effectiveness is VE = (1 - odds ratio) x 100.</p>
+  </section>
+
+  <section>
+    <h2>Quick start</h2>
+    <p>Install R 4.6.x and the required packages, put your linked files in the local <code>data/</code> folder, then run:</p>
+    <pre><code>Rscript run_all.R</code></pre>
+    <p>On Windows you can double-click <code>run_all.bat</code> instead. Outputs are written to <code>outputs/</code>, which is never committed.</p>
+  </section>
+
+  <section>
+    <h2>Pipeline</h2>
+    <table>
+      <thead><tr><th>Step</th><th>Script</th><th>Produces</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>R/00_config.R</code></td><td>packages, paths, shared helpers, coding maps</td></tr>
+        <tr><td>1</td><td><code>R/01_import_validate.R</code></td><td>reads the linkage and laboratory files, checks the schema</td></tr>
+        <tr><td>2</td><td><code>R/02_build_cohort.R</code></td><td>one row per participant, coded dataset, data dictionary, study flow</td></tr>
+        <tr><td>3</td><td><code>R/03_analysis.R</code></td><td>VE models, sensitivity analyses, mortality, figures, results bundle</td></tr>
+        <tr><td>4</td><td><code>R/04_report.R</code></td><td>narrative Word report, built from the bundle</td></tr>
+        <tr><td>5</td><td><code>R/05_slides.R</code></td><td>PowerPoint deck, built from the bundle</td></tr>
+      </tbody>
+    </table>
+    <p>Every result lives in the saved bundle, so the report and slides hold no hand-typed numbers.</p>
+  </section>
+
+  <section>
+    <h2>Data handling and privacy</h2>
+    <p>Participant data stays on your machine. The <code>data/</code> drop folder and all generated outputs, reports, decks and logs are listed in <code>.gitignore</code> and are never pushed. Only the code, the README, the example configuration and the shareable data dictionary are tracked. To read files from outside <code>data/</code>, copy <code>config.local.R.example</code> to <code>config.local.R</code> and set the paths there.</p>
+  </section>
+
+  <section>
+    <h2>Requirements</h2>
+    <pre><code>install.packages(c("dplyr", "ggplot2", "writexl", "officer", "flextable", "jsonlite"))</code></pre>
+    <p><code>officer</code> and <code>flextable</code> are needed for the report and slides. <code>jsonlite</code> is optional, used only when a dashboard cleaning folder is supplied.</p>
+  </section>
+
+  <section>
+    <h2>Methods in brief</h2>
+    <p>The outcome is the episode-defining RT-PCR result, the first definitive specimen on or after symptom onset. The exposure is vaccinated against not vaccinated, with unknown status excluded and never imputed. Models are logistic regression, crude and adjusted, with Firth penalised regression where the data are sparse. Sensitivity analyses cover the exclusion of lower-confidence links, alternative outcome definitions, and the protocol window that counts a person as effectively vaccinated only more than 10 days before onset. A retrospective cohort estimates effectiveness against death among confirmed cases.</p>
+    <p class="note">Preliminary and for internal review. All estimates are provisional.</p>
+  </section>
+</main>
+
+<footer class="wrap">Kinshasa School of Public Health. Source code only; no participant data is distributed.</footer>
+</body>
+</html>
