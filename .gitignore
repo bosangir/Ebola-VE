@@ -1,53 +1,33 @@
-# ===== EVE/VE analysis — keep ALL participant data and private paths out of git =====
+# ===== EVE vaccine-effectiveness analysis =====
+# Anything that identifies a person stays in the private folder OUTSIDE this
+# repository (EVE_VE_PRIVATE_identifiers/). These patterns are a safety net in
+# case such a file is ever copied in by mistake.
 
-# Local configuration with private input paths (never commit)
+# Local configuration (may contain private paths)
 config.local.R
 
-# Linked participant-data drop folder — never commit its contents (only its README)
-data/*
-!data/README.md
-
-# Generated outputs (tables, figures, clean datasets, reports)
-outputs/
-main_output/
-main_output_coded/
-main_output_protocol/
-output/
-tables/
-figures/
-
-# Participant-level / linked datasets and QC logs
-Distinct_CODED.csv
-Distinct_CODED.xlsx
+# Identifiable or record-level files
+EVE_VE_PRIVATE_identifiers/
+raw_inputs/
+*identifiable*
+*crosswalk*
+*qc_application_log*
 *participant_level*
-linked_dataset_*.csv
-cleaned_linkage.csv
-Link log.csv
-*_QC*.csv
-*qc_log*
-EVE_Site_Query*.xlsx
-*queries*.xlsx
+EVE_raw_*
+*.json
 
-# Reports / decks / unpublished outputs and Office lock files
-*.docx
-*.pptx
-*.pdf
-*.rds
-~$*
+# Generated R objects and run logs
+Outputs/*.rds
+Outputs/run_log.txt
 
-# Stray root-level duplicate of the dictionary (the tracked copy lives in data_dictionary/)
-/Distinct_CODED_data_dictionary.csv
-
-# R / OS cruft
+# R session files
 .Rproj.user/
 .Rhistory
 .RData
 .Rprofile
+
+# Office lock files and OS files
+~$*
 .DS_Store
 Thumbs.db
-
-# ---- intentionally TRACKED (shareable), despite patterns above ----
-!config.local.R.example
-!data_dictionary/
-!data_dictionary/*.csv
-!README.md
+desktop.ini
