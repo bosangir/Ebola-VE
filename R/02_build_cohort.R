@@ -1,38 +1,43 @@
 # =============================================================================
 #  02_build_cohort.R  —  build the CLEAN analysis dataset (one row per participant,
 #  coded variables + data dictionary) from the linkage + triangulated lab register,
-#  then derive the study-flow table (PowerPoint slide 6). Cleaning & derivation
+#  then derive the study-flow table. Cleaning & derivation
 #  rules follow the DQA / SOP / data dictionary.
 #
-#  IN  (from 01): LINK, WIDE   OUT: CODED_OUT (Distinct_CODED.csv) + .xlsx + dictionary
-#                 + outputs/cohort_flow.csv  + flags on the coded rows
+#  IN  (from 01): LINK, WIDE
+#  OUT: Data/EVE_VE_analysis_dataset_deidentified.csv (+ .xlsx), DATA_DICTIONARY.csv,
+#       Outputs/cohort_flow.csv, qc_summary.csv, qc_breakdown.csv (counts only);
+#       identifiable files go to the private folder only. Runs only in FULL mode.
 # =============================================================================
-if (!exists("LINK") || !exists("WIDE")) source(file.path(PROJ, "R", "01_import_validate.R"), local = FALSE)
+if (!exists("LINK") || !exists("WIDE")) source(file.path(SCRIPTS, "01_import_validate.R"), local = FALSE)
 
-## ---- optional: apply dashboard data-cleaning (deletions + consolidated edits) ----
 rj  <- function(p) if (file.exists(p)) tryCatch(jsonlite::fromJSON(paste(readLines(p, warn = FALSE, encoding = "UTF-8"), collapse = ""), simplifyVector = FALSE), error = function(e) NULL) else NULL
-nId <- function(s) gsub("[^A-Z0-9]", "", toupper(blank(s)))
+
+## ---- apply site QC feedback from the dashboard (deletions, corrections, merges) ----
 m <- LINK
-if (nzchar(DASH_DATA) && requireNamespace("jsonlite", quietly = TRUE)) {
-  del  <- rj(file.path(DASH_DATA, "deletions.json"));            del  <- if (is.null(del))  character(0) else unlist(del)
-  corr <- rj(file.path(DASH_DATA, "record_corrections.json"));  corr <- if (is.null(corr)) list()        else corr
-  if (length(del)) { keep <- !(g(m, "lab_sample_id") %in% del)
-    cat(sprintf("[02] cleaning: dropped %d deleted lab record(s)\n", sum(!keep))); m <- m[keep, , drop = FALSE] }
-  if (length(corr)) { labnm <- if ("labreg_name" %in% names(m)) g(m, "labreg_name") else g(m, "NAMES")
-    rid <- paste0("WP|", g(m, "lab_sample_id"), "|", nId(paste0(g(m,"name_4"), g(m,"name_5"))), "|", nId(labnm)); nap <- 0
-    for (i in seq_len(nrow(m))) { ce <- corr[[rid[i]]]; if (is.null(ce)) next
-      for (k in names(ce)) { v <- ce[[k]]; if (k %in% names(m) && length(v) && nzchar(as.character(v)[1])) { m[i, k] <- as.character(v)[1]; nap <- nap + 1 } } }
-    if (nap) cat(sprintf("[02] cleaning: applied %d consolidated field value(s)\n", nap)) }
-}
+N_EXPORT <- nrow(m); N_QC_DEL <- 0L; N_QC_MERGE <- 0L
+if (nzchar(DASH_DATA)) {
+  if (!requireNamespace("jsonlite", quietly = TRUE)) stop("Install jsonlite to apply the QC feedback: install.packages('jsonlite')")
+  source(file.path(SCRIPTS, "02a_apply_site_qc.R"), local = TRUE)
+  QC <- apply_qc(m, DASH_DATA); m <- QC$m; N_QC_DEL <- QC$n_del; N_QC_MERGE <- QC$n_merge
+  write.csv(QC$log, file.path(PRIVATE_DIR, "EVE_VE_qc_application_log.csv"), row.names = FALSE, na = "")   # lab IDs -> private
+  write.csv(QC$summary, file.path(OUT_DIR, "qc_summary.csv"), row.names = FALSE, na = "")          # counts only
+  .ql <- QC$log; .ql$n <- 1L                                                                         # aggregate breakdown
+  write.csv(aggregate(n ~ type + field + match + status, data = .ql, FUN = sum),
+            file.path(OUT_DIR, "qc_breakdown.csv"), row.names = FALSE, na = "")
+  cat("[02] QC feedback applied:\n"); for (i in seq_len(nrow(QC$summary)))
+    cat(sprintf("       %-48s %5s\n", QC$summary$Item[i], QC$summary$N[i]))
+  cat(sprintf("[02] QC log (lab IDs only) -> %s\n", file.path(PRIVATE_DIR, "EVE_VE_qc_application_log.csv")))
+} else { m$qc_corrected_fields <- ""; m$qc_merged <- ""; cat("[02] QC feedback NOT applied (no DASH_DATA)\n") }
 
 ## ---- de-duplicate to one row per participant (canonical key; keep within-pair) ----
-N_EXPORT <- nrow(m)
+N_AFTER_QC <- nrow(m)
 m$pk   <- pkey(m$name_1, m$name_4, m$name_5)
 m$prio <- ifelse(g(m, "match_type") == "within-pair", 0, 1)
 m <- m[order(m$pk, m$prio), ]
 mb <- m[!duplicated(m$pk), ]
-cat(sprintf("[02] linkage export rows = %d -> distinct participants = %d (%d duplicates consolidated)\n",
-            N_EXPORT, nrow(mb), N_EXPORT - nrow(mb)))
+cat(sprintf("[02] linkage export rows = %d -> after QC = %d -> distinct participants = %d (%d duplicates consolidated)\n",
+            N_EXPORT, N_AFTER_QC, nrow(mb), N_AFTER_QC - nrow(mb)))
 
 ## ---- join wide lab + per-participant RT-PCR history (uid-keyed) ----
 Wi <- match(g(mb, "lab_sample_id"), g(WIDE, "patient_uid"))
@@ -82,6 +87,22 @@ anyp[.nohist] <- ifelse(.single[.nohist] == "Positive","TRUE",
 epi_r <- gv("epi_r"); epi_r[.nohist] <- .single[.nohist]
 epi_code  <- ifelse(epi_r == "Positive","1", ifelse(epi_r == "Negative","0",""))
 case_conf <- ifelse(anyp == "TRUE","1", ifelse(n_tests == "","","0"))
+## ---- laboratory-side extras: death at sampling, co-infection, Ct values ----
+wcols <- function(stem) grep(paste0("^", stem, "_[0-9]+$"), names(WIDE), value = TRUE)
+wrow  <- function(cols) if (!length(cols)) matrix("", nrow(mb), 0) else
+  vapply(cols, function(cc) if (cc %in% names(WIDE)) blank(WIDE[[cc]])[Wi] else rep("", nrow(mb)), character(nrow(mb)))
+.wtxt <- function(stems) { m_ <- do.call(cbind, lapply(stems, function(s) wrow(c(wcols(s), intersect(s, names(WIDE))))))
+  if (is.null(m_) || !ncol(m_)) rep("", nrow(mb)) else tolower(apply(m_, 1, paste, collapse = " ")) }
+.bio   <- wrow(wcols("biofire_result"))
+biofire_tested <- if (ncol(.bio)) apply(.bio, 1, function(v) any(nzchar(v) & !grepl("not test|non test|non_test", v, ignore.case = TRUE))) else rep(FALSE, nrow(mb))
+malaria_kw <- "palu|malar|plasmod|falcip|falcif|artesun|coartem|quinin"
+malaria_detected <- grepl(malaria_kw, .wtxt(c("biofire_result","comment","comment_pcr_result","remarks","treatment","signs_symptoms")))
+.stat  <- wrow(wcols("status_at_sampling"))
+sampled_dead <- if (ncol(.stat)) apply(.stat, 1, function(v) any(grepl("dead|deceased|decede", v, ignore.case = TRUE))) else rep(FALSE, nrow(mb))
+.ctmin <- function(stem){ m_ <- wrow(wcols(stem)); if (!ncol(m_)) return(rep(NA_real_, nrow(mb)))
+  apply(m_, 1, function(v){ n <- numv(v); n <- n[!is.na(n) & n > 0 & n < 50]; if (length(n)) min(n) else NA_real_ }) }
+ct_gp_min <- .ctmin("genexpert_ct_gp"); ct_np_min <- .ctmin("genexpert_ct_np")
+
 surv_out <- unname(VIT[g(mb,"outcome")]); lab_fs <- wv("final_status")
 lab_dead <- grepl("dead|deced|deces|decede", lab_fs, ignore.case = TRUE); lab_alive <- grepl("alive|vivant", lab_fs, ignore.case = TRUE)
 vital <- ifelse((surv_out %in% "Dead") | lab_dead, "Dead", ifelse((surv_out %in% "Alive") | lab_alive, "Alive", "Unknown"))
@@ -123,10 +144,23 @@ D <- data.frame(
   contact_with_case = unname(YN[g(mb,"contact")]), contact_with_case_code = g(mb,"contact"),
   funeral_participation = unname(YN[g(mb,"funerailles")]), funeral_code = g(mb,"funerailles"),
   travel = unname(YN[g(mb,"voyage")]), travel_code = g(mb,"voyage"),
+  # ---- further exposure, clinical and laboratory variables (final report) ----
+  burial_attended = ifelse(g(mb,"attended_burial") %in% c("Yes","1"), "Yes", ifelse(g(mb,"attended_burial") %in% c("No","2"), "No", "Unknown")),
+  n_burials_attended = numv(g(mb,"n_burials_attended")), n_contacts = numv(g(mb,"n_contacts")),
+  contact_followed = unname(YN[g(mb,"contact_suivi")]), animal_contact = unname(YN[g(mb,"animal")]),
+  traditional_healer = unname(YN[g(mb,"tradipraticien")]), hemorrhage = unname(YN[g(mb,"hemorragie")]),
+  pregnant = unname(YN[g(mb,"pregnancy")]),
+  death_date = ifelse(nzchar(pdate(g(mb,"date_sortie_deces"))) & vital == "Dead", pdate(g(mb,"date_sortie_deces")), pdate(wv("date_of_death"))),
+  admission_date = pdate(wv("admission_date")),
+  sampled_dead = ifelse(sampled_dead, "Yes", "No"),
+  biofire_tested = ifelse(biofire_tested, "Yes", "No"), malaria_detected = ifelse(malaria_detected, "Yes", "No"),
+  ct_gp_min = ct_gp_min, ct_np_min = ct_np_min,
   linkage_tier = g(mb,"linkage_tier"), linkage_final_status = g(mb,"final_status"),
   match_type = g(mb,"match_type"),
   is_cross_record = ifelse(g(mb,"match_type") == "cross-record" | grepl("Cross", g(mb,"final_status")),"Yes","No"),
-  age_diff = g(mb,"age_diff"), stringsAsFactors = FALSE, check.names = FALSE)
+  age_diff = g(mb,"age_diff"),
+  qc_corrected_fields = g(mb,"qc_corrected_fields"), qc_merged = ifelse(g(mb,"qc_merged") == "Yes", "Yes", "No"),
+  stringsAsFactors = FALSE, check.names = FALSE)
 
 ## ---- optional: site-verified RT-PCR result overrides (uid-keyed) win ----
 if (nzchar(DASH_DATA) && requireNamespace("jsonlite", quietly = TRUE)) {
@@ -146,11 +180,24 @@ if (nzchar(DASH_DATA) && requireNamespace("jsonlite", quietly = TRUE)) {
 D[is.na(D)] <- ""
 
 ## ---- write the clean coded dataset + data dictionary ----
-source(file.path(PROJ, "R", "data_dictionary.R"), local = TRUE)   # builds DICT for D
-dir.create(dirname(CODED_OUT), showWarnings = FALSE, recursive = TRUE)
-write.csv(D,    CODED_OUT, row.names = FALSE, na = "")
-write.csv(DICT, file.path(OUT_DIR, "Distinct_CODED_data_dictionary.csv"), row.names = FALSE, na = "")
+source(file.path(SCRIPTS, "02b_data_dictionary.R"), local = TRUE)   # builds DICT for D
+# Identifying fields: kept ONLY in the private folder. Everything else is the
+# de-identified analysis dataset (study_id is the only key).
+ID_FIELDS <- c("record_id","lab_patient_uid","firstname","surname","village","hcw_frontline_role")
+D$village_recorded <- ifelse(nzchar(D$village), "Yes", "No")
+DICT <- rbind(DICT, dd("village_recorded","Village of residence recorded","categorical","Derived","Yes/No","village name itself is kept only in the private file"))
+DICT$in_deidentified_file <- ifelse(DICT$variable %in% ID_FIELDS, "No (private folder only)", "Yes")
+# 1) PRIVATE: full identifiable coded dataset + study-ID crosswalk
+write.csv(D, CODED_OUT, row.names = FALSE, na = "")
+write.csv(D[, c("study_id", intersect(ID_FIELDS, names(D)))], file.path(PRIVATE_DIR, "EVE_VE_study_id_crosswalk.csv"), row.names = FALSE, na = "")
 writexl::write_xlsx(list(Distinct_CODED = D, data_dictionary = DICT), sub("\\.csv$", ".xlsx", CODED_OUT))
+# 2) DE-IDENTIFIED: linked, de-duplicated, one row per participant, no names/IDs
+DEID <- D[, setdiff(names(D), ID_FIELDS), drop = FALSE]
+write.csv(DEID, DEID_OUT, row.names = FALSE, na = "")
+writexl::write_xlsx(list(data = DEID, data_dictionary = DICT[DICT$variable %in% names(DEID), ]), sub("\\.csv$", ".xlsx", DEID_OUT))
+write.csv(DICT, DICT_OUT, row.names = FALSE, na = "")
+cat(sprintf("[02] de-identified dataset: %d participants x %d variables -> %s\n", nrow(DEID), ncol(DEID), DEID_OUT))
+cat(sprintf("[02] identifiers + crosswalk kept privately in %s\n", PRIVATE_DIR))
 
 ## ---- study-flow table (PowerPoint slide 6) ----
 elig  <- D$episode_result_code %in% c("0","1")           # definitive RT-PCR
@@ -158,13 +205,14 @@ kvax  <- D$vacc_status_code %in% c("1","2")              # known vaccination sta
 onset_ok <- nzchar(D$onset_date)                         # calendar-time covariate available
 prim  <- elig & kvax
 flow <- data.frame(check.names = FALSE, Step = c(
-  "Linkage export (records)", "  duplicates consolidated", "Distinct participants",
+  "Linkage export (records)", "  QC: deleted records removed", "  QC: duplicate records merged (site feedback)",
+  "  duplicates consolidated (canonical identity key)", "Distinct participants",
   "  within-pair confirmed links", "  cross-record (orphan) links",
   "No definitive RT-PCR (indeterminate/missing)", "Episode-defining RT-PCR (eligible)",
   "  cases (PCR+)", "  controls (PCR-)", "Unknown vaccination status (excluded)",
   "PRIMARY ANALYTIC SAMPLE (definitive result + known vaccination)",
   "  cases / controls", "Missing covariate (onset -> calendar time)", "ADJUSTED MODEL sample"),
-  N = c(N_EXPORT, N_EXPORT - nrow(D), nrow(D),
+  N = c(N_EXPORT, N_QC_DEL, N_QC_MERGE, N_AFTER_QC - nrow(D), nrow(D),
         sum(D$is_cross_record != "Yes"), sum(D$is_cross_record == "Yes"),
         sum(!elig), sum(elig), sum(elig & D$episode_result_code=="1"), sum(elig & D$episode_result_code=="0"),
         sum(elig & !kvax), sum(prim),
@@ -175,7 +223,7 @@ flow$N <- ifelse(is.na(flow$N),
 write.csv(flow, file.path(OUT_DIR, "cohort_flow.csv"), row.names = FALSE, na = "")
 
 ## ---- clean master workbook: the de-duplicated participants, dictionary and flow ----
-master_xlsx <- file.path(OUT_DIR, sprintf("EVE_Master_Distinct_%d_cleaned.xlsx", nrow(D)))
+master_xlsx <- file.path(PRIVATE_DIR, sprintf("EVE_VE_master_%d_participants_identifiable.xlsx", nrow(D)))
 writexl::write_xlsx(list(Participants = D, Data_dictionary = DICT, Study_flow = flow), master_xlsx)
 cat(sprintf("[02] clean master (deduplicated, %d participants) -> %s\n", nrow(D), master_xlsx))
 

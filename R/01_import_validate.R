@@ -1,16 +1,16 @@
 # =============================================================================
 #  01_import_validate.R  —  read the linkage input and the wide lab register,
 #  validate the schema, fail early with a clear message. Reads participant-level
-#  data: run only when data processing is authorised (files in data/, or paths in
-#  config.local.R).
+#  data: run only when data processing is authorised (private raw_inputs folder, see
+#  00_config.R). Runs only in FULL mode.
 # =============================================================================
 stopifnot(exists("LINK_INPUT"), exists("WIDE_LAB"))
 if (!file.exists(LINK_INPUT)) stop("LINK_INPUT not found: ", LINK_INPUT,
-  "\n  -> put the linkage file in data/ (see data/README.md) or set LINK_INPUT in config.local.R.")
+  "\n  -> put the linkage export in the private raw_inputs folder (see README) or set LINK_INPUT in config.local.R.")
 # WIDE_LAB is optional: "" means none in data/ -> result comes from the linkage file itself.
 has_wide <- nzchar(WIDE_LAB)
 if (has_wide && !file.exists(WIDE_LAB)) stop("WIDE_LAB set but not found: ", WIDE_LAB,
-  "\n  -> put the wide lab register in data/ or fix the path in config.local.R (or remove it to run without it).")
+  "\n  -> put the lab register in the private raw_inputs folder or fix the path in config.local.R.")
 
 LINK <- rc(LINK_INPUT)
 WIDE <- if (has_wide) rc(WIDE_LAB) else

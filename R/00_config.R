@@ -1,59 +1,61 @@
 # =============================================================================
-#  00_config.R  —  packages, paths, shared helpers, coding maps, VE transform.
-#  Sourced first by run_all.R and by every stage. No participant data is read here.
-#  Private input/output paths live in config.local.R (gitignored); see
-#  config.local.R.example for the template.
+#  00_config.R  -  packages, folders, shared helpers, coding maps, VE transform.
+#  Sourced first by run_all.R. No participant data is read here.
+#
+#  Two ways to run:
+#   * FULL (private) mode  - on the study team's computer, where the raw
+#     identifiable inputs exist in the private folder. Rebuilds Data/ from the
+#     414-record linkage export, applies the site QC feedback, removes
+#     duplicates and de-identifies, then runs the analysis.
+#   * ANALYSIS-ONLY (public) mode - anywhere else. Uses the de-identified
+#     dataset already in Data/ and runs the analysis only.
+#  Set the environment variable EVE_MODE=public to force analysis-only mode.
 # =============================================================================
 
-## ---- packages (report stage additionally needs officer, flextable, readxl) ----
-.need <- c("dplyr", "ggplot2", "writexl")
+## ---- packages ------------------------------------------------------------------
+.need <- c("dplyr", "ggplot2", "writexl", "logistf", "sandwich", "tidyr", "survival")
 .missing <- .need[!vapply(.need, requireNamespace, logical(1), quietly = TRUE)]
 if (length(.missing))
   stop("Install missing package(s): install.packages(c(",
        paste(sprintf('"%s"', .missing), collapse = ", "), "))")
 suppressWarnings(suppressMessages({library(dplyr); library(ggplot2); library(writexl)}))
 
-## ---- project root + local paths ----------------------------------------------
-if (!exists("PROJ")) PROJ <- getwd()                      # run_all.R sets this; else cwd
-# Ignore any stale LINK_INPUT/WIDE_LAB/DASH_DATA left in an interactive session;
-# config.local.R (if present) re-sets them, otherwise they resolve from data/ below.
-LINK_INPUT <- WIDE_LAB <- DASH_DATA <- NULL
-local_cfg <- file.path(PROJ, "config.local.R")
-if (file.exists(local_cfg)) {
-  source(local_cfg, local = FALSE)
+## ---- repository folders (shareable) ---------------------------------------------
+if (!exists("PROJ")) PROJ <- getwd()                    # run_all.R sets this to the repository root
+SCRIPTS  <- file.path(PROJ, "Rscripts")
+DATA_DIR <- file.path(PROJ, "Data")                     # de-identified dataset only
+OUT_DIR  <- file.path(PROJ, "Outputs")                  # aggregate tables and figures only
+DEID_OUT <- file.path(DATA_DIR, "EVE_VE_analysis_dataset_deidentified.csv")
+DICT_OUT <- file.path(PROJ, "DATA_DICTIONARY.csv")
+
+## ---- private folder (never uploaded) ------------------------------------------
+# Raw identifiable inputs and every file that names a person live OUTSIDE the
+# repository, in a folder next to it. Override with EVE_PRIVATE_DIR or config.local.R.
+PRIVATE_DIR <- Sys.getenv("EVE_PRIVATE_DIR", file.path(dirname(PROJ), "EVE_VE_PRIVATE_identifiers"))
+RAW_DIR     <- file.path(PRIVATE_DIR, "raw_inputs")
+LINK_INPUT  <- file.path(RAW_DIR, "EVE_raw_linkage_export_414_records.csv")   # confirmed linkage export
+WIDE_LAB    <- file.path(RAW_DIR, "EVE_raw_lab_register_wide.csv")            # triangulated lab register
+DASH_DATA   <- file.path(RAW_DIR, "site_qc_feedback")                         # site QC decisions (JSON)
+local_cfg <- file.path(PROJ, "config.local.R")                                # optional, gitignored
+if (file.exists(local_cfg)) source(local_cfg, local = FALSE)
+CODED_OUT <- file.path(PRIVATE_DIR, "EVE_VE_dataset_identifiable.csv")
+
+## ---- mode ----------------------------------------------------------------------
+PRIVATE_MODE <- file.exists(LINK_INPUT) && !identical(tolower(Sys.getenv("EVE_MODE")), "public")
+if (PRIVATE_MODE) {
+  if (!file.exists(WIDE_LAB)) { WIDE_LAB <- ""
+    message("[config] No wide lab register: the RT-PCR result comes from the linkage file (single result).") }
+  if (!file.exists(file.path(DASH_DATA, "record_corrections.json")) &&
+      !file.exists(file.path(DASH_DATA, "merge_decisions.json"))) { DASH_DATA <- ""
+    message("[config] WARNING: no site QC feedback found; corrections and merges will NOT be applied.") }
+  dir.create(PRIVATE_DIR, showWarnings = FALSE, recursive = TRUE)
 } else {
-  message("[config] config.local.R not found — using the local data/ folder. ",
-          "Copy config.local.R.example to config.local.R only if you need to point elsewhere.")
+  if (!file.exists(DEID_OUT))
+    stop("Analysis-only mode needs the de-identified dataset: ", DEID_OUT)
+  message("[config] Analysis-only mode: using the de-identified dataset in Data/.")
 }
-# Default input location: a local, gitignored  data/  folder — drop the linked files
-# there and the pipeline finds them (no config edit needed). config.local.R overrides.
-# Only file EXISTENCE is checked here; no data content is read.
-.pick <- function(cands){ hit <- cands[file.exists(cands)]; if (length(hit)) hit[1] else NA_character_ }
-if (is.null(LINK_INPUT)) LINK_INPUT <- .pick(file.path(PROJ, "data",
-    c("cleaned_linkage.csv","linked_dataset_MAIN_distinct_cases.csv","linked_confirmed.csv",
-      "linked_dataset_MAIN.csv","linked_database.csv","linkage.csv","linked.csv")))
-if (is.null(WIDE_LAB))   WIDE_LAB   <- .pick(file.path(PROJ, "data", c("merged_eve_lab_wide.csv","wide_lab.csv")))
-if (is.null(DASH_DATA))  DASH_DATA  <- {                    # dashboard JSON folder (optional)
-    d <- file.path(PROJ, "data"); if (file.exists(file.path(d, "cleaning_status.json"))) d else "" }
-# Require the linkage input. The wide lab register is OPTIONAL: if absent, the RT-PCR
-# result is taken from the linkage file itself (single result; no multi-specimen episode history).
-if (is.na(LINK_INPUT))
-  stop("No linkage input found.\n  -> put the linked file in data/ (see data/README.md), ",
-       "or set LINK_INPUT in config.local.R.")
-if (is.na(WIDE_LAB)) { WIDE_LAB <- ""
-  message("[config] No wide lab register (merged_eve_lab_wide.csv) in data/ — the RT-PCR result will ",
-          "come from the linkage file (single result per participant). Add it to data/ for full episode history.") }
-# Guard: don't mix a data/ file with a config.local.R path pointing elsewhere.
-.indir <- function(p, sub) startsWith(gsub("\\\\","/", normalizePath(p, mustWork = FALSE)),
-                                      gsub("\\\\","/", normalizePath(file.path(PROJ, sub), mustWork = FALSE)))
-if (nzchar(WIDE_LAB) && (.indir(LINK_INPUT,"data") != .indir(WIDE_LAB,"data")))
-  stop("Input source mismatch — the linkage and wide-lab files are in different places:\n  linkage  = ", LINK_INPUT,
-       "\n  wide lab = ", WIDE_LAB,
-       "\n-> put BOTH in data/ (see data/README.md), or set both LINK_INPUT and WIDE_LAB in config.local.R.")
-if (!exists("OUT_DIR"))    OUT_DIR    <- file.path(PROJ, "outputs")
-if (!exists("CODED_OUT"))  CODED_OUT  <- file.path(OUT_DIR, "Distinct_CODED.csv")  # cohort-stage output
-dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
-dir.create(file.path(OUT_DIR, "figures"), showWarnings = FALSE, recursive = TRUE)
+for (.d in c(DATA_DIR, OUT_DIR, file.path(OUT_DIR, "figures")))
+  dir.create(.d, showWarnings = FALSE, recursive = TRUE)
 
 ## ---- constants (protocol / coding schemes, from the data dictionary) ---------
 PROTOCOL_WINDOW_DAYS <- 10          # Ervebo: symptom onset > 10 days after vaccination = effective
@@ -83,15 +85,28 @@ yn     <- function(x){ x <- toupper(trimws(blank(x)))
   ifelse(x %in% c("1","YES","OUI","Y","O","TRUE"), "Yes",
   ifelse(x %in% c("2","NO","NON","N","FALSE","0"), "No", "Unknown")) }
 # tolerant multi-format date parser -> "YYYY-MM-DD" character
+.MONTHS <- c(january=1,february=2,march=3,april=4,may=5,june=6,july=7,august=8,september=9,october=10,
+             november=11,december=12,janvier=1,fevrier=2,mars=3,avril=4,mai=5,juin=6,juillet=7,aout=8,
+             septembre=9,octobre=10,novembre=11,decembre=12)
 pdate  <- function(x){ x <- trimws(blank(x)); out <- as.Date(rep(NA_real_, length(x)), origin = "1970-01-01")
+  # "13 October 2025" / "13 octobre 2025" — parsed explicitly so it works under any system locale
+  mo <- regmatches(x, regexec("^([0-9]{1,2})[ -]+([A-Za-zéû]+)[ -]+([0-9]{4})$", x))
+  for (i in which(lengths(mo) == 4)) { k <- .MONTHS[chartr("éû", "eu", tolower(mo[[i]][3]))]
+    if (!is.na(k)) out[i] <- suppressWarnings(as.Date(sprintf("%s-%02d-%02d", mo[[i]][4], k, as.integer(mo[[i]][2])))) }
   for (f in c("%Y-%m-%d","%d-%b-%Y","%d-%b-%y","%d/%m/%Y","%d/%m/%y","%d-%m-%Y","%d.%m.%Y")) {
     mm <- is.na(out) & nzchar(x); if (!any(mm)) break; out[mm] <- suppressWarnings(as.Date(x[mm], format = f)) }
   ser <- is.na(out) & grepl("^[0-9]{5}$", x); if (any(ser)) out[ser] <- as.Date(as.numeric(x[ser]), origin = "1899-12-30")
+  # Two-digit years: surveillance dates are "08-Sep-25". A %Y format reads "25" as year
+  # 25 AD, so any parsed year below 100 is moved to 20xx. (Before this fix every
+  # surveillance date was ~2000 years early relative to the ISO laboratory dates.)
+  yr <- as.integer(format(out, "%Y")); fx <- !is.na(yr) & yr < 100
+  if (any(fx)) out[fx] <- as.Date(sprintf("%04d-%s", yr[fx] + 2000L, format(out[fx], "%m-%d")))
   as.character(out) }
 # Vaccine effectiveness from an odds ratio and its CI:  VE = (1 - OR) * 100
 ve_from_or <- function(or, lo, hi){ or <- unname(or); lo <- unname(lo); hi <- unname(hi)
   c(VE = (1 - or) * 100, VE_L = (1 - hi) * 100, VE_U = (1 - lo) * 100) }
 
-cat(sprintf("[config] project = %s\n[config] linkage input = %s\n[config] outputs -> %s\n",
-            PROJ, LINK_INPUT, OUT_DIR))
+cat(sprintf("[config] repository = %s\n[config] mode = %s\n[config] de-identified data = %s\n[config] aggregate outputs -> %s\n",
+            PROJ, if (PRIVATE_MODE) "FULL (rebuilds Data/ from private raw inputs)" else "ANALYSIS-ONLY", DEID_OUT, OUT_DIR))
+if (PRIVATE_MODE) cat(sprintf("[config] private folder (not in repository) = %s\n", PRIVATE_DIR))
 
