@@ -1,26 +1,28 @@
-# data/ — local linked-data drop folder (NEVER committed)
+# Data
 
-Put the linked participant files here and the pipeline uses them automatically — no
-config edit needed. Everything in this folder except this README is gitignored.
+| File | Contents |
+| :--- | :--- |
+| `EVE_VE_analysis_dataset_deidentified.csv` | Analysis dataset: one row per participant (392 rows, 92 variables) |
+| `EVE_VE_analysis_dataset_deidentified.xlsx` | The same data, with the data dictionary on a second sheet |
 
-## Files the pipeline looks for (first match wins)
-| Role | Drop a file named (any of) |
-|---|---|
-| Linkage input (one row per surveillance↔lab pair) | priority order: `cleaned_linkage.csv` → `linked_dataset_MAIN_distinct_cases.csv` → `linked_confirmed.csv` → `linked_dataset_MAIN.csv` → `linked_database.csv` → `linkage.csv` → `linked.csv` |
-| Wide laboratory register (uid-keyed RT-PCR history) | `merged_eve_lab_wide.csv`, `wide_lab.csv` |
-| (optional) dashboard resolution JSONs | `cleaning_status.json`, `deletions.json`, `record_corrections.json`, `result_overrides.json` |
+## How the dataset was built
 
-If none are present, the pipeline stops with a clear message (no data is bundled).
-To point elsewhere instead, set the paths in `config.local.R` (that overrides this folder).
+1. **Start:** the confirmed surveillance–laboratory linkage export (414 records), joined to the triangulated laboratory register for the full RT-PCR history of each person.
+2. **Site QC feedback:** applied from the data-cleaning dashboard (254 corrected values, merge decisions and deletions checked).
+3. **De-duplication:** one row per person, using a canonical identity key (22 duplicates consolidated).
+4. **Derived variables:** outcome, exposure, timing and other analysis variables.
+5. **De-identification:** names, case and laboratory IDs, village and health-worker role were removed. `study_id` (EVE-0001 to EVE-0392) is the only key.
 
-## Expected columns (names only — see data_dictionary/)
-- **Linkage input**: `name_1, name_4, name_5, lab_sample_id, sex, age_years, vaccin_mve,
-  date_vaccination1, type_vaccin1, vaccine_strategy, date_frist_sympt, specimen_collection_date,
-  outcome, ever_hospitalised, contact_connu, contact, funerailles, voyage, health_zone_1,
-  province_1, health_area_1, village_residence, occupation, type_personnel, infection, carte,
-  source_vacccination, sex_agreement, age_diff, match_type, final_status, linkage_tier, labreg_name`
-- **Wide lab**: `patient_uid, final_result_evd_1..N, test_result_date_1..N, sex, age_years,
-  health_zone, health_area, final_status, pcr_test_result, date_of_death`
+Steps 1 to 5 are `Rscripts/01_import_validate.R` and `Rscripts/02_build_cohort.R`. They run only on the study team's computer, where the raw inputs are kept. Every variable is described in [`../DATA_DICTIONARY.md`](../DATA_DICTIONARY.md).
 
-Column names here are documented in `data_dictionary/Distinct_CODED_data_dictionary.csv`.
-The analysis never needs the data values to be read by anyone but you.
+## What is not here
+
+The raw linkage export, laboratory register, site QC files and the study-number crosswalk all identify people. They are kept in a private folder outside this repository and must not be added to it.
+
+## Handling
+
+This file has no names or IDs. It still holds exact dates (onset, specimen, vaccination, death), exact age, sex and health area for patients in a small outbreak. Together these could identify someone, so:
+
+- keep the repository **private**;
+- share the data only under the study's data-sharing terms;
+- coarsen the dates (for example, to week) before any public release.
