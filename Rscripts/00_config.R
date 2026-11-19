@@ -22,7 +22,7 @@ suppressWarnings(suppressMessages({library(dplyr); library(ggplot2); library(wri
 
 ## ---- repository folders (shareable) ---------------------------------------------
 if (!exists("PROJ")) PROJ <- getwd()                    # run_all.R sets this to the repository root
-SCRIPTS  <- file.path(PROJ, "R")
+SCRIPTS  <- file.path(PROJ, "Rscripts")
 DATA_DIR <- file.path(PROJ, "data")                     # de-identified dataset only
 OUT_DIR  <- file.path(PROJ, "Outputs")                  # aggregate tables and figures only
 DEID_OUT <- file.path(DATA_DIR, "EVE_VE_analysis_dataset_deidentified.csv")

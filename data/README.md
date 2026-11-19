@@ -13,7 +13,7 @@
 4. **Derived variables:** outcome, exposure, timing and other analysis variables.
 5. **De-identification:** names, case and laboratory IDs, village and health-worker role were removed. `study_id` (EVE-0001 to EVE-0392) is the only key.
 
-Steps 1 to 5 are `R/01_import_validate.R` and `R/02_build_cohort.R`. They run only on the study team's computer, where the raw inputs are kept. Every variable is described in [`../data_dictionary/DATA_DICTIONARY.md`](../data_dictionary/DATA_DICTIONARY.md).
+Steps 1 to 5 are `Rscripts/01_import_validate.R` and `Rscripts/02_build_cohort.R`. They run only on the study team's computer, where the raw inputs are kept. Every variable is described in [`../data_dictionary/DATA_DICTIONARY.md`](../data_dictionary/DATA_DICTIONARY.md).
 
 ## What is not here
 
