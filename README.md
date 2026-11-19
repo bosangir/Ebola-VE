@@ -53,8 +53,6 @@ Set the environment variable `EVE_MODE=public` to force analysis-only mode. Both
 
 `R/run_all.R` runs the steps in order. Steps 1 and 2 run only in full mode.
 
-Older files from the 5 November version are superseded and no longer called by the pipeline: `R/03_analysis.R`, `R/data_dictionary.R`, `R/04_report.R`, and the top-level `run_all.R` and `run_all.bat`.
-
 ## Data handling and privacy
 
 Participant data never goes into this repository.
