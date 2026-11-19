@@ -35,7 +35,7 @@ The pipeline picks its mode by itself:
 | Mode | When | What runs |
 | :--- | :--- | :--- |
 | Full | The study team's computer, where the private raw inputs exist | Steps 1 to 4. Rebuilds the de-identified dataset from the 414-record linkage export, then analyses it. |
-| Analysis only | Anyone with the de-identified dataset in `Data/` | Steps 3 and 4 |
+| Analysis only | Anyone with the de-identified dataset in `data/` | Steps 3 and 4 |
 
 Set the environment variable `EVE_MODE=public` to force analysis-only mode. Both modes give the same results.
 
@@ -77,7 +77,7 @@ These files are:
 
 To use another location, set `EVE_PRIVATE_DIR`, or copy `config.local.R.example` to `config.local.R` and set the paths there. `config.local.R` is gitignored.
 
-**Outputs of a full run.** Every file that names a person goes to the private folder: the identifiable coded dataset, the study-number crosswalk and the QC log by laboratory ID. The shareable de-identified dataset is written to `Data/`. Aggregate tables and figures go to `Outputs/`.
+**Outputs of a full run.** Every file that names a person goes to the private folder: the identifiable coded dataset, the study-number crosswalk and the QC log by laboratory ID. The shareable de-identified dataset is written to `data/`. Aggregate tables and figures go to `Outputs/`.
 
 **De-identified dataset.** This file holds no names or IDs. It still contains exact dates, age, sex and health area, so it is shared only by the study team, under the study's data-sharing terms. It is not stored here.
 
@@ -93,7 +93,7 @@ install.packages(c("dplyr", "ggplot2", "writexl", "logistf", "sandwich", "tidyr"
 
 ## Outputs
 
-**`Data/`**
+**`data/`**
 - `EVE_VE_analysis_dataset_deidentified.csv` and `.xlsx`: one row per participant, study number only, with the data dictionary on a second sheet.
 
 **`Outputs/`**

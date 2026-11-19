@@ -1,7 +1,7 @@
 # =============================================================================
 #  04_extended_analysis.R  —  analyses requested for the final report.
 #
-#  Reads : Data/EVE_VE_analysis_dataset_deidentified.csv (via 03's D)
+#  Reads : data/EVE_VE_analysis_dataset_deidentified.csv (via 03's D)
 #  Writes: Outputs/extended_tables.xlsx   (every table, one per sheet)
 #          Outputs/extended_bundle.rds    (all results)
 #          Outputs/figures/F6..F13.png

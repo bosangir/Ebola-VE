@@ -5,7 +5,7 @@
 #  rules follow the DQA / SOP / data dictionary.
 #
 #  IN  (from 01): LINK, WIDE
-#  OUT: Data/EVE_VE_analysis_dataset_deidentified.csv (+ .xlsx), DATA_DICTIONARY.csv,
+#  OUT: data/EVE_VE_analysis_dataset_deidentified.csv (+ .xlsx), data_dictionary/DATA_DICTIONARY.csv,
 #       Outputs/cohort_flow.csv, qc_summary.csv, qc_breakdown.csv (counts only);
 #       identifiable files go to the private folder only. Runs only in FULL mode.
 # =============================================================================

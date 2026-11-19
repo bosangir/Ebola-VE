@@ -1,7 +1,7 @@
 # =============================================================================
 #  03_main_analysis.R  —  Vaccine-effectiveness analysis (test-negative design).
 #
-#  Reads : Data/EVE_VE_analysis_dataset_deidentified.csv (no names/IDs)
+#  Reads : data/EVE_VE_analysis_dataset_deidentified.csv (no names/IDs)
 #  Writes: Outputs/results_bundle.rds   (all results, read by the report)
 #          Outputs/analysis_tables.xlsx (every table, one per sheet)
 #          Outputs/figures/F1..F5.png

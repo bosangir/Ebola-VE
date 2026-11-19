@@ -4,11 +4,11 @@
 #
 #  Two ways to run:
 #   * FULL (private) mode  - on the study team's computer, where the raw
-#     identifiable inputs exist in the private folder. Rebuilds Data/ from the
+#     identifiable inputs exist in the private folder. Rebuilds data/ from the
 #     414-record linkage export, applies the site QC feedback, removes
 #     duplicates and de-identifies, then runs the analysis.
 #   * ANALYSIS-ONLY (public) mode - anywhere else. Uses the de-identified
-#     dataset already in Data/ and runs the analysis only.
+#     dataset already in data/ and runs the analysis only.
 #  Set the environment variable EVE_MODE=public to force analysis-only mode.
 # =============================================================================
 
@@ -22,11 +22,11 @@ suppressWarnings(suppressMessages({library(dplyr); library(ggplot2); library(wri
 
 ## ---- repository folders (shareable) ---------------------------------------------
 if (!exists("PROJ")) PROJ <- getwd()                    # run_all.R sets this to the repository root
-SCRIPTS  <- file.path(PROJ, "Rscripts")
-DATA_DIR <- file.path(PROJ, "Data")                     # de-identified dataset only
+SCRIPTS  <- file.path(PROJ, "R")
+DATA_DIR <- file.path(PROJ, "data")                     # de-identified dataset only
 OUT_DIR  <- file.path(PROJ, "Outputs")                  # aggregate tables and figures only
 DEID_OUT <- file.path(DATA_DIR, "EVE_VE_analysis_dataset_deidentified.csv")
-DICT_OUT <- file.path(PROJ, "DATA_DICTIONARY.csv")
+DICT_OUT <- file.path(PROJ, "data_dictionary", "DATA_DICTIONARY.csv")
 
 ## ---- private folder (never uploaded) ------------------------------------------
 # Raw identifiable inputs and every file that names a person live OUTSIDE the
@@ -52,9 +52,9 @@ if (PRIVATE_MODE) {
 } else {
   if (!file.exists(DEID_OUT))
     stop("Analysis-only mode needs the de-identified dataset: ", DEID_OUT)
-  message("[config] Analysis-only mode: using the de-identified dataset in Data/.")
+  message("[config] Analysis-only mode: using the de-identified dataset in data/.")
 }
-for (.d in c(DATA_DIR, OUT_DIR, file.path(OUT_DIR, "figures")))
+for (.d in c(DATA_DIR, dirname(DICT_OUT), OUT_DIR, file.path(OUT_DIR, "figures")))
   dir.create(.d, showWarnings = FALSE, recursive = TRUE)
 
 ## ---- constants (protocol / coding schemes, from the data dictionary) ---------
@@ -107,6 +107,6 @@ ve_from_or <- function(or, lo, hi){ or <- unname(or); lo <- unname(lo); hi <- un
   c(VE = (1 - or) * 100, VE_L = (1 - hi) * 100, VE_U = (1 - lo) * 100) }
 
 cat(sprintf("[config] repository = %s\n[config] mode = %s\n[config] de-identified data = %s\n[config] aggregate outputs -> %s\n",
-            PROJ, if (PRIVATE_MODE) "FULL (rebuilds Data/ from private raw inputs)" else "ANALYSIS-ONLY", DEID_OUT, OUT_DIR))
+            PROJ, if (PRIVATE_MODE) "FULL (rebuilds data/ from private raw inputs)" else "ANALYSIS-ONLY", DEID_OUT, OUT_DIR))
 if (PRIVATE_MODE) cat(sprintf("[config] private folder (not in repository) = %s\n", PRIVATE_DIR))
 
